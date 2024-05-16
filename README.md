@@ -1,6 +1,5 @@
 # Project-Data-Analysis
 
-Song Data Analysis and Prediction
 This project analyzes song data from song_data.csv and performs various statistical analyses and machine learning techniques, including linear regression, multiple regression, and Random Forest regression, to predict song popularity. The project also includes data preprocessing steps like handling missing values, removing duplicates, and identifying outliers. Additionally, it covers the visualization of categorical data and the assessment of multicollinearity.
 
 # Project Overview
