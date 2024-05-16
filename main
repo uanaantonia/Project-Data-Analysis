@@ -1,0 +1,411 @@
+"""
+Created on Tue Jan 30 16:08:12 2024
+
+@author: Oana
+"""
+
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+data_frame = pd.read_csv(r"C:\Users\Oana\OneDrive\Desktop\facultate\song_data.csv")
+
+# Afișează numărul de coloane și numărul de înregistrări
+# df.shape() returnează o tuplă care conține numărul de rânduri și numărul de coloane dintr-un DataFrame
+# df.shape
+# Out[10]: (18835, 15)
+# [0] Prima componentă a formei este numărul de rânduri (înregistrări), [1] iar a doua este numărul de coloane.
+
+numar_inregistrari = data_frame.shape[0]
+numar_atribute = data_frame.shape[1]
+print(
+      f'Numărul total de înregistrări este: {numar_inregistrari} fiecare avand: {numar_atribute} atribute')
+
+numar_elemente = data_frame.size
+print(
+      f'Numarul total de elemente este {numar_elemente}')
+
+# print(data_frame.info())
+
+# Stergerea coloanei song_name, deoarece nu adauga valoare semnificativa pentru predictie
+df = data_frame.drop('song_name', axis=1)
+
+# Eliminarea rândurilor duplicate și actualizarea DataFrame-ului cu resetarea indexului după eliminarea duplicatelor
+###################################################################
+df = df.drop_duplicates().reset_index(drop=True)
+
+if (df.shape == (df.shape[0], data_frame.shape[1] + 1)):
+    print("Data Frame-ul nu are randuri duplicate")
+else:
+    print("Numarul de randuri duplicate eliminate: ",
+          data_frame.shape[0]-df.shape[0])
+
+# Afisarea numarului de inregistrari ale data frame-ului actualizat, fara duplicate
+print('Numărul de înregistrări dupa eliminarea duplicatelor: ', df.shape[0])
+###################################################################
+
+# Verificare existentei valorilor nule in DataFrame
+###################################################################
+if df.isnull().any().any():
+    print("Există valori nule în DataFrame.")
+    # Puteți afișa și coloanele cu valori nule folosind df.isnull().sum() - utilizam metoda isnull()
+    # pentru a obține o matrice de valori booleane care indică dacă fiecare element din DataFrame este sau nu
+    # nul, iar apoi apelați sum() pentru a obține numărul total de valori nule în fiecare coloană.
+    print("Numărul de valori nule pe coloane:")
+    print(df.isnull().sum())
+else:
+    print("Nu există valori nule în DataFrame.")
+
+###################################################################
+
+
+# Calculul mediilor, cvartilor, deviatiei standard si a medianei
+###################################################################
+
+df.info() #afiseaza informațiile despre tipurile de date ale coloanelor
+
+# Calcularea mediilor pentru fiecare coloană numerică
+mediile = df.mean()
+
+# Calcularea cvartile pentru fiecare coloană numerică
+cvartile = df.quantile([0.25, 0.5, 0.75])
+
+# Calcularea deviației standard pentru fiecare coloană numerică
+deviatia_standard = df.std()
+
+# Calcularea medianei pentru fiecare coloană numerică
+mediana = df.median()
+
+# Afișarea rezultatelor
+print("\nMediile pentru fiecare coloană numerică:", "\n", mediile)
+
+print("\nCvartilele pentru fiecare coloană numerică:", "\n", cvartile)
+
+print("\nDeviatia standard pentru fiecare coloană numerică:",
+      "\n", deviatia_standard)
+
+print("\nMediana pentru fiecare coloană numerică:", "\n", mediana)
+
+
+# average song length si mediana song length
+df1 = df.copy()
+
+song_duration_min = df1['song_duration_ms']
+
+medie_duration = df1['song_duration_ms'].mean().round(decimals=2)
+
+song_duration_min = df1['song_duration_ms'] / (1000 * 60)
+
+df1['song_duration_ms'] = song_duration_min
+
+medie_minute = df1['song_duration_ms'].mean().round(decimals=2)
+print(f"durata medie a unei melodii este de {medie_duration} milisecunde sau {medie_minute} minute") 
+
+df1['song_duration_ms'].median()
+
+q1 = df1['song_duration_ms'].quantile(0.25).round(decimals=2)
+mediana_q2 = df1['song_duration_ms'].quantile(0.50).round(decimals=2)
+q3 = df1['song_duration_ms'].quantile(0.75).round(decimals=2)
+mediana_minute =df1['song_duration_ms'].median()
+print(f"mediana este egala cu {mediana_minute}")
+print(f"Q1 = {q1}")
+print(f"Q2 = {mediana_q2}")
+print(f"Q3 = {q3}")
+
+print(df1['song_duration_ms'].describe())
+
+array_durata = df1['song_duration_ms'].to_numpy()
+deviatie_standard = np.std(array_durata)
+print(f"Deviatia standard {deviatie_standard}")
+
+###################################################################
+
+# Coloane categoriale
+###################################################################    
+# Stabilirea unui prag pentru numărul maxim de valori unice
+prag_val_unice = 15
+
+# Identificarea coloanelor cu un număr de valori unice mai mic decat pragul ales
+coloane_categoriale = df.columns[df.nunique() <= prag_val_unice].tolist()
+
+print("Coloanele cu variabile categoriale sunt:", coloane_categoriale)
+###################################################################
+
+
+# Vizualizarea valorilor categoriale - grafice
+###################################################################
+for coloana in coloane_categoriale:
+    sns.countplot(x=coloana, data=df)
+    plt.title(f'Distribuția pentru {coloana}')
+    plt.ylabel('Numărul de Melodii')
+    plt.show()
+###################################################################
+
+
+# Identificarea si stergerea outliers-urilor
+###################################################################
+
+# Copie a DataFrame-ului pentru a păstra originalul nemodificat
+df_fara_outliers = df.copy()
+
+# Lista de caracteristici numerice
+caracteristici_numerice = df.select_dtypes(include=np.number).columns.tolist()
+
+# Iterează prin fiecare caracteristică numerică și elimină outlierii folosind IQR
+for coloana in caracteristici_numerice:
+    if coloana not in coloane_categoriale:
+        Q1 = df_fara_outliers[coloana].quantile(0.25)
+        Q3 = df_fara_outliers[coloana].quantile(0.75)
+        IQR = Q3 - Q1
+        df_fara_outliers = df_fara_outliers[df_fara_outliers[coloana] <= (Q3+(1.5*IQR))]
+        df_fara_outliers = df_fara_outliers[df_fara_outliers[coloana] >= (Q1-(1.5*IQR))]
+        df_fara_outliers = df_fara_outliers.reset_index(drop=True)
+
+# Afisarea numarului de inregistrari dupa eliminarea outlierilor
+print('Numărul de înregistrări după eliminarea outlierilor: ', df_fara_outliers.shape[0])
+
+df=df_fara_outliers.copy()
+###################################################################
+
+
+# Stabilirea encoding-ului pt coloanele categoriale si impartirea coloanelor dummy encoded
+###################################################################
+# Verificare care dintre col din lista de col categoriale este one hot encoded 
+for coloana in coloane_categoriale:
+    if coloana in df.columns and df[coloana].nunique() == 2:
+        o_h_encoded = pd.get_dummies(df[coloana], drop_first=True, prefix=str(coloana), dtype = int)
+        print(f"Coloana '{coloana}' este one-hot encoded.")
+    elif coloana in data_frame.columns:
+        print(f"Coloana '{coloana}' este dummy encoded.")
+
+# Impartirea coloanelor dummy encoded
+for col in coloane_categoriale:
+    if 2 < df[col].nunique() < 17:
+        df_dummies = pd.get_dummies(df[col], prefix=col, dtype=int)
+        df = pd.concat([df, df_dummies], axis=1)
+        df = df.drop(col, axis=1)
+###################################################################
+    
+  
+# Corelatia
+
+###################################################################
+# Calculeaza coeficientii de corelatie 
+coef_corr = df.corr(numeric_only=True)
+
+# Mareste dimensiunea diagramei (30 inch pe lungime si 25 inch pe latime)
+plt.figure(figsize=(30, 25))
+
+# Desenează harta de corelație dintre var independente si cea dependenta
+sns.heatmap(coef_corr, annot=True, fmt=".5f", linewidths=.5, vmin=-1, vmax=1, center = 0)
+###################################################################
+
+
+# Regresia liniara simpla pentru song_popularity si danceability
+
+###################################################################
+#Reshape pentru a transforma x și y în matrice bidimensionale
+X = df["danceability"].values.reshape(-1,1)
+
+y = df["song_popularity"].values.reshape(-1,1)
+
+model = LinearRegression()
+model.fit(X,y)
+
+r_patrat = model.score(X,y)
+
+print("r_patrat inainte de testare si antrenament= ", r_patrat)
+
+from sklearn.model_selection import train_test_split
+
+x_train, x_test, y_train, y_test=train_test_split(X, y, test_size=0.2, random_state=0)
+
+model = LinearRegression()
+model.fit(x_train, y_train)
+
+r_patrat_train = model.score(x_train, y_train)
+r_patrat_test = model.score(x_test, y_test)
+
+print("r patrat rezultat in urma antrenarii datelor= ", r_patrat_train)
+print("r patrat rezultat in urma testanrii datelor= ", r_patrat_test)
+
+y_prezis = model.predict(X)
+
+# Scatter plot
+plt.scatter(X, y, color='blue', label='Corespondenta danceability - song popularity')
+plt.plot(X, y_prezis, color='red', linewidth=2, label='Linia Regresiei Liniare')
+plt.title('Influenta caracteristicii dansante a melodiei asupra popularitatii acesteia')
+plt.xlabel('Danceability')
+plt.ylabel('Song Popularity')
+plt.legend()
+plt.show()
+
+###################################################################
+
+
+# Testarea si antrenarea datelor 
+###################################################################
+ 
+from sklearn.model_selection import train_test_split
+
+x_song_details = df.drop("song_popularity", axis=1).reset_index(drop=True)
+y_popularity = df["song_popularity"].reset_index(drop=True)
+
+x_train1, x_test1, y_train1, y_test1=train_test_split(x_song_details, y_popularity, test_size=0.2, random_state=0)
+
+###################################################################
+
+
+# Regresie multipla pe datele antrenate si testate
+###################################################################
+
+model_reg_multipla = LinearRegression()
+model_reg_multipla.fit(x_train1, y_train1)
+
+# Afisarea coeficientilor modelului
+print("Coeficientii modelului sunt: ", model_reg_multipla.intercept_)
+
+# Formarea unei liste cu coeficientii si coloanele corespunzatoare
+df_coeficienti = pd.DataFrame(list(zip(x_song_details.columns, model_reg_multipla.coef_)), columns=['Variabila', 'Coeficient'])
+df_coeficienti = df_coeficienti.sort_values(by='Coeficient', ascending = False).reset_index(drop=True)
+
+# Prezicerea setului rezultat de train si test
+y_prezis1= model_reg_multipla.predict(x_test1)  
+x_prezis1= model_reg_multipla.predict(x_train1) 
+
+print("Predictii pentru setul rezultat in urma testarii: {}".format(y_prezis1))
+
+# Valori actuale vs valori prezise
+model_reg_multipla_diff = pd.DataFrame({'Actual value': y_test1, 'Predicted value': y_prezis1})
+model_reg_multipla_diff_final = model_reg_multipla_diff.reset_index(drop=True)
+print(model_reg_multipla_diff_final)
+
+r_patrat1 = model_reg_multipla.score(x_test1, y_test1)
+print('R-squared:', r_patrat1)
+
+# Analiza valorilor de erori pe care setul testat le prezinta
+from sklearn import metrics
+
+mae = metrics.mean_absolute_error(y_test1, y_prezis1)
+mse = metrics.mean_squared_error(y_test1, y_prezis1)
+r2 = np.sqrt(metrics.mean_squared_error(y_test1, y_prezis1))
+
+
+print('Mean Absolute Error:', mae)
+print('Mean Square Error:', mse)
+print('Root Mean Square Error:', r2)
+
+# Reprezentarea grafica valori reale vs valori prezise
+plt.scatter(y_test1, y_prezis1)
+plt.plot([min(y_test1), max(y_test1)], [min(y_test1), max(y_test1)], '--', color='purple', label='Perfect Predictions')
+plt.xlabel('Valori Reale')
+plt.ylabel('Valori Prezise')
+plt.title('Valorile actuale vs cele prezise')
+plt.show()
+
+
+# Random Forrest Regression
+
+###################################################################
+from sklearn.ensemble import RandomForestRegressor
+
+rf_model_song_pop = RandomForestRegressor(n_estimators=100, random_state=0)
+rf_model_song_pop.fit(x_train1, y_train1)
+
+y_prezis_rf = rf_model_song_pop.predict(x_test1)
+
+# Scorurile importantei fiecarei coloane
+feature_importance = rf_model_song_pop.feature_importances_
+
+serie_influenta_asupra_popularitatii = pd.Series(feature_importance, index=x_song_details.columns)
+serie_influenta_asupra_popularitatii_sortata = serie_influenta_asupra_popularitatii.sort_index(ascending = False)
+
+# Reprezentare grafica a importantei fiecarei caracteristici
+plt.figure(figsize=(10, 8))
+serie_influenta_asupra_popularitatii_sortata.plot.barh(color='skyblue')
+plt.xlabel('Feature Importance')
+plt.ylabel('Feature')
+plt.title('Influenta asupra popularitatii, folosind regression forrest')
+plt.show()
+
+# Reprezentare grafica a valorilor reale vs celor prezise
+
+plt.figure(figsize=(8, 8))
+plt.scatter(y_test1, y_prezis_rf, color = 'green', alpha=0.5)
+plt.plot([min(y_test1), max(y_test1)], [min(y_test1), max(y_test1)], '--', color='darkred', label='Perfect Predictions')
+plt.xlabel('Valori reale')
+plt.ylabel('Valorile prezise')
+plt.title('Valori actuale vs. Valori prezise (Random Forest)')
+plt.legend()
+plt.show()
+###################################################################
+
+
+# Multicoliniaritate
+###################################################################
+
+#Alegem variabilele 
+
+X1 = df[['acousticness' , 'energy' , 'loudness','danceability']]
+
+# Calculeaza VIF pentru fiecare variabila
+
+def calc_vif(X1):
+    vif_data = pd.DataFrame()
+    vif_data["Variable"] = X1.columns
+    vif_data["VIF"] = [variance_inflation_factor(X1.values, i) for i in range(X1.shape[1])]
+    print(vif_data)
+    return(vif_data)
+
+calc_vif(X1)
+
+#Rezolvarea multicoliniaritatii 
+X1 = df[['acousticness' , 'energy' , 'loudness']]
+print("_________________________")
+calc_vif(X1)
+
+X1 = df[['acousticness' , 'energy']]
+print("_________________________")
+calc_vif(X1)
+####################################################################
+
+# Clustere
+####################################################################
+from sklearn.cluster import KMeans
+
+inertias = []
+
+for i in range(1,15):
+    kmeans = KMeans(n_clusters=i, n_init ='auto')
+    kmeans.fit(df)
+    inertias.append(kmeans.inertia_)
+
+plt.plot(range(1,15), inertias, marker='o')
+plt.title('Metoda elbow')
+plt.xlabel('Numar de clustere')
+plt.ylabel('Inertia')
+plt.show()
+
+kmeans = KMeans(n_clusters=3, n_init ='auto')
+kmeans.fit(df)
+
+plt.scatter(x = 'danceability', y= 'tempo',data=df, c=kmeans.labels_)
+plt.xlabel('danceability')
+plt.ylabel('tempo')
+plt.show()
+
+# one hot encoding test
+
+# one_hot_encoded_data = pd.get_dummies(data_frame, columns = ['song_name']) 
+# kmeans2 = KMeans(n_clusters=3, n_init='auto')
+# kmeans2.fit(one_hot_encoded_data)
+
+# plt.scatter(x = 'tempo', y= 'song_popularity',data=one_hot_encoded_data, c=kmeans2.labels_)
+# plt.show()
+
+
+####################################################################
